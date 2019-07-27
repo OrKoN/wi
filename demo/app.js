@@ -2,20 +2,37 @@ import { h, renderApp } from '../src/wi.js';
 
 function App({ state, actions }) {
   return (
-    <div id="app" didMount={actions.didMount}>
-      <input id="counter" value={state.counter} onInput={actions.handleInput} />
-      <button id="incr" onClick={actions.increment}>
+    <div k="app" id="app" didMount={actions.didMount}>
+      <input
+        k="counter"
+        id="counter"
+        value={state.counter}
+        onInput={actions.handleInput}
+      />
+      <button k="incr" id="incr" onClick={actions.increment}>
         Add 1
       </button>
-      <button id="decr" onClick={actions.decrement}>
+      <button k="decr" id="decr" onClick={actions.decrement}>
         Minus 1
       </button>
-      <div>{state.counter}</div>
+      <div k="c1">{state.counter}</div>
       {state.counter > 2 && (
-        <div didUpdate={actions.didUpdate} willUnmount={actions.willUnmount}>
+        <div
+          k="c2"
+          className="test"
+          didUpdate={actions.didUpdate}
+          willUnmount={actions.willUnmount}
+        >
           {state.counter}
         </div>
       )}
+      <div
+        k="img"
+        dangerouslySetInnerHTML={{
+          __html:
+            '<img src="https://pluralsight.imgix.net/paths/path-icons/nodejs-601628d09d.png" />',
+        }}
+      />
     </div>
   );
 }
@@ -42,7 +59,9 @@ const actions = (store) => {
     },
     decrement: (e) => {
       store.state.counter--;
-      return true;
+      setTimeout(() => {
+        store.flush();
+      }, 500);
     },
     handleInput: (e) => {
       store.state.counter = e.target.value;

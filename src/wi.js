@@ -1,101 +1,78 @@
 /*
- -- remove props
- -- support class names
+ -- solve reordering
  -- support svg
  -- tests
  -- dangerously set html
 */
 
-export function h(type, props, ...children) {
-  let nodeChildren = [];
-
-  for (var c of children) {
-    if (typeof c === 'string' || typeof c === 'number') {
-      nodeChildren.push({
-        type: null,
-        props: c,
-      });
-    } else {
-      nodeChildren.push(c);
-    }
-  }
-
+export function h(t, p, ...cs) {
   return {
-    type,
-    props: {
-      ...props,
-      children: nodeChildren,
+    t,
+    p: {
+      ...p,
+      [children]: cs
+        .filter((c) => c !== false)
+        .map((c) =>
+          typeof c === 'object'
+            ? c
+            : {
+                t: null,
+                p: c,
+              },
+        ),
     },
   };
 }
 
-function _iterate(obj, cb) {
-  Object.keys(obj).forEach((key) => {
-    cb(key);
-  });
-}
-
 export function renderApp(node, mount, state, wireActions) {
-  const store = {
+  var store = {
     state,
+    flush: () => {
+      _enumerate(elements, (elementKey) => {
+        elements[elementKey].used = false;
+      });
+      render(node, mount);
+      _enumerate(elements, (elementKey) => {
+        if (!elements[elementKey].used) {
+          // unmount
+          var node = elements[elementKey];
+          _invoke(node.p, willUnmount, node.el);
+          node.el.parentNode.removeChild(node.el);
+          delete elements[elementKey];
+        }
+      });
+    },
   };
 
-  const elements = {};
+  var elements = {};
 
-  function getEl(key, type, props) {
-    if (key in elements) {
-      elements[key].used = true;
-      elements[key].props = props;
-      return elements[key];
+  function getEl(key, node) {
+    if (!(key in elements)) {
+      elements[key] = {
+        el:
+          node.t === null
+            ? document.createTextNode(node.p)
+            : document.createElement(node.t),
+      };
     }
-    elements[key] = {
-      el:
-        type === null
-          ? document.createTextNode(props)
-          : document.createElement(type),
-      used: true,
-      props,
-    };
-    return elements[key];
+    elements[key].used = true;
+    return elements[key].el;
   }
 
-  const specialProps = {
-    children: 0,
-    className: 0,
-  };
+  var actions = wireActions(store);
 
-  const actions = wireActions(store);
-
-  _iterate(actions, (actionKey) => {
-    const action = actions[actionKey];
+  _enumerate(actions, (actionKey) => {
+    var action = actions[actionKey];
     actions[actionKey] = (...args) => {
-      const act = !!action(...args);
-      if (act) {
-        _iterate(elements, (elementKey) => {
-          elements[elementKey].used = false;
-        });
-        render(node, mount);
-        _iterate(elements, (elementKey) => {
-          if (!elements[elementKey].used) {
-            const node = elements[elementKey];
-
-            node.el.parentNode.removeChild(node.el);
-
-            if (node.props && typeof node.props.willUnmount === 'function') {
-              node.props.willUnmount(node.el);
-            }
-            delete elements[elementKey];
-          }
-        });
-      }
+      if (!!action(...args)) store.flush();
     };
   });
 
   function render(node, target, prefix = [], idx = 0) {
-    if (node.type instanceof Function) {
+    if (node.t instanceof Function) {
       return render(
-        node.type({
-          ...node.props,
+        node.t({
+          ...node.p,
           state: store.state,
           actions,
         }),
@@ -105,41 +82,41 @@ export function renderApp(node, mount, state, wireActions) {
       );
     }
 
-    const key = [...prefix, node.type, idx].join('.');
-    const exists = !!elements[key];
-    const { el, props } = getEl(key, node.type, node.props);
+    var key = [...prefix, node.t, idx].join('.');
+    var exists = !!elements[key];
+    var el = getEl(key, node);
 
     if (el instanceof HTMLElement) {
-      for (var opt of Object.keys(node.props || {})) {
+      // update
+      _enumerate(node.p, (opt) => {
         if (!(opt in specialProps)) {
-          el[opt.toLowerCase()] = node.props[opt];
+          el[opt.toLowerCase()] = node.p[opt];
         }
-      }
+      });
 
-      prefix.push(node.type);
-      prefix.push(idx);
-
-      if (node.props && node.props.children) {
-        for (var i = 0; i < node.props.children.length; i++) {
-          render(node.props.children[i], el, prefix, i);
-        }
+      if (node.p[className]) {
+        el.setAttribute('class', node.p[className]);
       }
-    } else if (el instanceof Text) {
-      el.nodeValue = node.props;
+      if (node.p[dangerouslySetInnerHTML]) {
+        el.innerHTML = node.p[dangerouslySetInnerHTML].__html;
+      }
+      prefix.push(node.t, idx);
+      for (var [i, c] of node.p[children].entries()) {
+        render(c, el, prefix, i);
+      }
+      prefix.splice(-2, 2);
     }
 
-    if (exists && props && typeof props.didUpdate === 'function') {
-      props.didUpdate(el);
+    if (el instanceof Text) {
+      el.nodeValue = node.p;
     }
 
-    prefix.pop();
-    prefix.pop();
-
-    if (!exists) {
+    if (exists) {
+      _invoke(node.p, didUpdate, el);
+    } else {
+      // mount
       target.appendChild(el);
-      if (props && typeof props.didMount === 'function') {
-        props.didMount(el);
-      }
+      _invoke(node.p, didMount, el);
     }
 
     return el;
@@ -147,3 +124,31 @@ export function renderApp(node, mount, state, wireActions) {
 
   render(node, mount);
 }
+
+function _enumerate(obj, cb) {
+  Object.keys(obj).forEach((key) => {
+    cb(key);
+  });
+}
+
+function _invoke(obj, fn, ...args) {
+  obj && obj[fn] && obj[fn](...args);
+}
+
+var didUpdate = 'didUpdate';
+var didMount = 'didMount';
+var willUnmount = 'willUnmount';
+var dangerouslySetInnerHTML = 'dangerouslySetInnerHTML';
+var className = 'className';
+var children = 'children';
+
+var specialProps = {
+  actions: 0,
+  state: 0,
+  [children]: 0,
+  [className]: 0,
+  [willUnmount]: 0,
+  [didUpdate]: 0,
+  [didMount]: 0,
+  [dangerouslySetInnerHTML]: 0,
+};
