@@ -1,0 +1,25 @@
+{
+  "name": "wi",
+  "version": "0.0.1",
+  "description": "",
+  "source": "src/wi.js",
+  "main": "dist/wi.js",
+  "module": "dist/wi.mjs",
+  "unpkg": "dist/wi.umd.js",
+  "scripts": {
+    "build": "microbundle"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JustComments/wi.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/JustComments/wi/issues"
+  },
+  "homepage": "https://github.com/JustComments/wi#readme",
+  "devDependencies": {
+    "microbundle": "0.11.0"
+  }
+}
