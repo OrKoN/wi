@@ -17,7 +17,7 @@ to React with some differences:
 _Note: the lib is in very early stage. It might not work properly at all_
 
 ```jsx
-import { h, renderApp } from '../../src/wi.js';
+import { h, renderApp } from 'wi';
 
 function App({ state, actions }) {
   return (
