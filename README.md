@@ -5,6 +5,7 @@ to React with some differences:
 
 - recommended for small apps where one person can understand all details (not
   recommended for bigger apps)
+- focuses on small size and not performance
 - supports only function components
 - offers mutable and directly accessible state accessible to all components
 - no support for `style` attribute, only `className`
