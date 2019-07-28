@@ -1,17 +1,21 @@
 /*
- -- solve reordering
+  names:
+    - p:props
+    - t:type
+    - c:child
+    - k:key
+
  -- support svg
  -- tests
- -- dangerously set html
 */
 
-export function h(t, p, ...cs) {
+export function h(t, p, ...childNodes) {
   return {
     t,
     k: p ? p.k : null,
     p: {
       ...p,
-      [children]: cs
+      [children]: childNodes
         .flat()
         .filter((c) => c !== false && c !== null)
         .map((c, i) =>
@@ -20,7 +24,7 @@ export function h(t, p, ...cs) {
             : {
                 t: null,
                 p: c,
-                k: i,
+                k: null,
               },
         ),
     },
@@ -38,6 +42,7 @@ export function renderApp(node, mount, state, wireActions) {
       _enumerate(elements, (elementKey) => {
         if (!elements[elementKey].used) {
           // unmount
+          debugger;
           var node = elements[elementKey];
           _invoke(node.p, willUnmount, node.el);
           node.el.parentNode.removeChild(node.el);
@@ -59,6 +64,7 @@ export function renderApp(node, mount, state, wireActions) {
       };
     }
     elements[key].used = true;
+    elements[key].p = node.p;
     return elements[key].el;
   }
 
@@ -73,29 +79,40 @@ export function renderApp(node, mount, state, wireActions) {
     };
   });
 
-  function update(el, node, oldp) {
-    const newp = node.p;
-    _enumerate(node.p, (opt) => {
-      if (!(opt in specialProps)) {
-        if (!oldp || oldp[opt] !== newp[opt]) {
-          el[opt.toLowerCase()] = newp[opt];
-        }
+  function setProperty(el, name, value, oldValue) {
+    if (name in reservedProps) {
+      return;
+    }
+    name = name === 'className' ? 'class' : name;
+    if (name === 'dangerouslySetInnerHTML') {
+      if (oldValue && value.__html === oldValue.__html) {
+        return;
+      }
+      el.innerHTML = value === null ? '' : value.__html;
+    }
+    if (name.startsWith('on')) {
+      el[name.toLowerCase()] = value;
+    } else {
+      if (value === null || value === false) {
+        el.removeAttribute(name, value);
+      } else {
+        el.setAttribute(name, value);
+      }
+    }
+  }
+
+  function update(el, newProps, oldProps) {
+    _enumerate(oldProps, (prop) => {
+      if (!(prop in newProps)) {
+        setProperty(el, prop, null, oldProps[prop]);
       }
     });
-    if (newp && newp[className]) {
-      el.setAttribute('class', newp[className]);
-    } else {
-      el.removeAttribute('class');
-    }
-    if (newp[dangerouslySetInnerHTML]) {
-      if (
-        !oldp ||
-        oldp[dangerouslySetInnerHTML].__html !==
-          newp[dangerouslySetInnerHTML].__html
-      ) {
-        el.innerHTML = newp[dangerouslySetInnerHTML].__html;
+
+    _enumerate(newProps, (prop) => {
+      if (oldProps[prop] !== newProps[prop]) {
+        setProperty(el, prop, newProps[prop], oldProps[prop]);
       }
-    }
+    });
   }
 
   function render(node, target, prefix = [], idx = 0) {
@@ -117,13 +134,9 @@ export function renderApp(node, mount, state, wireActions) {
     var order = [];
 
     if (el instanceof HTMLElement) {
-      if (exists) {
-        update(el, node, elements[key].p);
-      } else {
-        update(el, node);
-      }
+      var oldp = exists ? elements[key].p : {};
+      update(el, node.p, oldp);
       elements[key].p = { ...node.p };
-
       prefix.push(node.t, node.k || idx);
       var i = 0;
       for (var c of node.p[children]) {
@@ -168,17 +181,15 @@ function _invoke(obj, fn, ...args) {
 var didUpdate = 'didUpdate';
 var didMount = 'didMount';
 var willUnmount = 'willUnmount';
-var dangerouslySetInnerHTML = 'dangerouslySetInnerHTML';
 var className = 'className';
 var children = 'children';
 
-var specialProps = {
+var reservedProps = {
   actions: 0,
   state: 0,
+  k: 0,
   [children]: 0,
-  [className]: 0,
   [willUnmount]: 0,
   [didUpdate]: 0,
   [didMount]: 0,
-  [dangerouslySetInnerHTML]: 0,
 };

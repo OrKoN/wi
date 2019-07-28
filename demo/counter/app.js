@@ -56,17 +56,16 @@ const actions = (store) => {
     },
     increment: (e) => {
       store.state.counter++;
-      return true;
     },
     decrement: (e) => {
       store.state.counter--;
       setTimeout(() => {
         store.flush();
       }, 500);
+      return false;
     },
     handleInput: (e) => {
       store.state.counter = e.target.value;
-      return true;
     },
   };
 };
