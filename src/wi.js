@@ -8,16 +8,19 @@
 export function h(t, p, ...cs) {
   return {
     t,
+    k: p ? p.k : null,
     p: {
       ...p,
       [children]: cs
-        .filter((c) => c !== false)
-        .map((c) =>
+        .flat()
+        .filter((c) => c !== false && c !== null)
+        .map((c, i) =>
           typeof c === 'object'
             ? c
             : {
                 t: null,
                 p: c,
+                k: i,
               },
         ),
     },
@@ -64,9 +67,36 @@ export function renderApp(node, mount, state, wireActions) {
   _enumerate(actions, (actionKey) => {
     var action = actions[actionKey];
     actions[actionKey] = (...args) => {
-      if (!!action(...args)) store.flush();
+      if (action.call(actions, ...args) !== false) {
+        store.flush();
+      }
     };
   });
+
+  function update(el, node, oldp) {
+    const newp = node.p;
+    _enumerate(node.p, (opt) => {
+      if (!(opt in specialProps)) {
+        if (!oldp || oldp[opt] !== newp[opt]) {
+          el[opt.toLowerCase()] = newp[opt];
+        }
+      }
+    });
+    if (newp && newp[className]) {
+      el.setAttribute('class', newp[className]);
+    } else {
+      el.removeAttribute('class');
+    }
+    if (newp[dangerouslySetInnerHTML]) {
+      if (
+        !oldp ||
+        oldp[dangerouslySetInnerHTML].__html !==
+          newp[dangerouslySetInnerHTML].__html
+      ) {
+        el.innerHTML = newp[dangerouslySetInnerHTML].__html;
+      }
+    }
+  }
 
   function render(node, target, prefix = [], idx = 0) {
     if (node.t instanceof Function) {
@@ -78,46 +108,46 @@ export function renderApp(node, mount, state, wireActions) {
         }),
         target,
         prefix,
-        idx,
       );
     }
 
-    var key = [...prefix, node.t, idx].join('.');
+    var key = [...prefix, node.t || 'text', node.k || idx].join('.');
     var exists = !!elements[key];
     var el = getEl(key, node);
+    var order = [];
 
     if (el instanceof HTMLElement) {
-      // update
-      _enumerate(node.p, (opt) => {
-        if (!(opt in specialProps)) {
-          el[opt.toLowerCase()] = node.p[opt];
-        }
-      });
+      if (exists) {
+        update(el, node, elements[key].p);
+      } else {
+        update(el, node);
+      }
+      elements[key].p = { ...node.p };
 
-      if (node.p[className]) {
-        el.setAttribute('class', node.p[className]);
-      }
-      if (node.p[dangerouslySetInnerHTML]) {
-        el.innerHTML = node.p[dangerouslySetInnerHTML].__html;
-      }
-      prefix.push(node.t, idx);
-      for (var [i, c] of node.p[children].entries()) {
-        render(c, el, prefix, i);
+      prefix.push(node.t, node.k || idx);
+      var i = 0;
+      for (var c of node.p[children]) {
+        order.push(render(c, el, prefix, i));
+        i++;
       }
       prefix.splice(-2, 2);
-    }
-
-    if (el instanceof Text) {
+    } else if (el instanceof Text) {
       el.nodeValue = node.p;
     }
 
-    if (exists) {
-      _invoke(node.p, didUpdate, el);
-    } else {
+    // reorder
+    for (var i = 0; i < order.length; i++) {
+      if (el.children[i] !== order[i]) {
+        el.insertBefore(order[i], el.children[i]);
+      }
+    }
+
+    if (!exists) {
       // mount
       target.appendChild(el);
-      _invoke(node.p, didMount, el);
     }
+
+    _invoke(node.p, exists ? didUpdate : didMount, el);
 
     return el;
   }
