@@ -42,7 +42,6 @@ export function renderApp(node, mount, state, wireActions) {
       _enumerate(elements, (elementKey) => {
         if (!elements[elementKey].used) {
           // unmount
-          debugger;
           var node = elements[elementKey];
           _invoke(node.p, willUnmount, node.el);
           node.el.parentNode.removeChild(node.el);
@@ -64,7 +63,6 @@ export function renderApp(node, mount, state, wireActions) {
       };
     }
     elements[key].used = true;
-    elements[key].p = node.p;
     return elements[key].el;
   }
 
@@ -128,7 +126,9 @@ export function renderApp(node, mount, state, wireActions) {
       );
     }
 
-    var key = [...prefix, node.t || 'text', node.k || idx].join('.');
+    prefix.push(node.t || 'text', node.k || idx);
+
+    var key = prefix.join('.');
     var exists = !!elements[key];
     var el = getEl(key, node);
     var order = [];
@@ -136,17 +136,17 @@ export function renderApp(node, mount, state, wireActions) {
     if (el instanceof HTMLElement) {
       var oldp = exists ? elements[key].p : {};
       update(el, node.p, oldp);
-      elements[key].p = { ...node.p };
-      prefix.push(node.t, node.k || idx);
       var i = 0;
       for (var c of node.p[children]) {
         order.push(render(c, el, prefix, i));
         i++;
       }
-      prefix.splice(-2, 2);
+      elements[key].p = { ...node.p };
     } else if (el instanceof Text) {
       el.nodeValue = node.p;
     }
+
+    prefix.splice(-2, 2);
 
     // reorder
     for (var i = 0; i < order.length; i++) {
