@@ -9,25 +9,32 @@
  -- tests
 */
 
-export function h(t, p, ...childNodes) {
+export function h(t, p, children) {
+  p = { ...p };
+  if (children != null && !Array.isArray(children)) {
+    children = [children];
+    for (var i = 3; i < arguments.length; i++) {
+      children.push(arguments[i]);
+    }
+  }
+  if (children != null) {
+    p.children = children.map((c, i) =>
+      typeof c === 'object'
+        ? c
+        : {
+            t: null,
+            p: c,
+            k: null,
+          },
+    );
+  }
+  var k = p && p.k ? p.k : null;
+  delete p.k;
   return {
     t,
-    k: p ? p.k : null,
-    p: {
-      ...p,
-      [children]: childNodes
-        .flat()
-        .filter((c) => c !== false && c !== null)
-        .map((c, i) =>
-          typeof c === 'object'
-            ? c
-            : {
-                t: null,
-                p: c,
-                k: null,
-              },
-        ),
-    },
+    k,
+    p,
+    constructor: undefined,
   };
 }
 

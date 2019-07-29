@@ -7,7 +7,8 @@
   "module": "dist/wi.mjs",
   "unpkg": "dist/wi.umd.js",
   "scripts": {
-    "build": "microbundle"
+    "build": "microbundle",
+    "test": "jest"
   },
   "repository": {
     "type": "git",
@@ -20,6 +21,11 @@
   },
   "homepage": "https://github.com/JustComments/wi#readme",
   "devDependencies": {
+    "@babel/core": "^7.5.5",
+    "@babel/plugin-transform-react-jsx": "^7.3.0",
+    "@babel/preset-env": "^7.5.5",
+    "babel-jest": "^24.8.0",
+    "jest": "24.8.0",
     "microbundle": "0.11.0"
   }
 }
