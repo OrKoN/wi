@@ -167,13 +167,7 @@ describe('h', () => {
     expect(r).toEqual(
       obj({
         p: obj({
-          children: [
-            {
-              k: null,
-              t: null,
-              p: 'textstuff',
-            },
-          ],
+          children: ['textstuff'],
         }),
       }),
     );
@@ -199,40 +193,16 @@ describe('h', () => {
       obj({
         p: obj({
           children: [
-            {
-              k: null,
-              t: null,
-              p: 'one',
-            },
-            {
-              k: null,
-              t: null,
-              p: 'two',
-            },
+            'one',
+            'two',
             h('bar'),
-            {
-              k: null,
-              t: null,
-              p: 'three',
-            },
+            'three',
             h('baz'),
             h('baz'),
-            {
-              k: null,
-              t: null,
-              p: 'four',
-            },
+            'four',
             null,
-            {
-              k: null,
-              t: null,
-              p: 'five',
-            },
-            {
-              k: null,
-              t: null,
-              p: 'six',
-            },
+            'five',
+            'six',
           ],
         }),
       }),

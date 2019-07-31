@@ -1,4 +1,4 @@
-import { h, renderApp } from '../../src/wi.js';
+import { h, render } from '../../src/wi.js';
 
 function App({ state, actions }) {
   return (
@@ -49,6 +49,7 @@ const actions = (store) => {
     },
     willUnmount: (ref) => {
       console.log('willUnmount', ref);
+      return false;
     },
     didUpdate: (ref) => {
       console.log('didUpdate', ref);
@@ -70,4 +71,4 @@ const actions = (store) => {
   };
 };
 
-renderApp(<App />, document.getElementById('mount'), initialState, actions);
+render(<App />, document.getElementById('mount'), initialState, actions);

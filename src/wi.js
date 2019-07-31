@@ -9,27 +9,16 @@
  -- tests
 */
 
-export function h(t, p, children) {
+export function h(t, p, ...children) {
   p = { ...p };
-  if (children != null && !Array.isArray(children)) {
-    children = [children];
-    for (var i = 3; i < arguments.length; i++) {
-      children.push(arguments[i]);
-    }
-  }
-  if (children != null) {
-    p.children = children.map((c, i) =>
-      typeof c === 'object'
-        ? c
-        : {
-            t: null,
-            p: c,
-            k: null,
-          },
-    );
-  }
-  var k = p && p.k ? p.k : null;
+  let k = p && p.k ? p.k : null;
   delete p.k;
+  if (arguments.length >= 3) {
+    p.children =
+      children.length == 1 && Array.isArray(children[0])
+        ? children[0]
+        : children;
+  }
   return {
     t,
     k,
@@ -38,18 +27,20 @@ export function h(t, p, children) {
   };
 }
 
-export function renderApp(node, mount, state, wireActions) {
-  var store = {
+export function render(node, mount, state = {}, wireActions = () => ({})) {
+  mount.innerHTML = '';
+
+  let store = {
     state,
     flush: () => {
       _enumerate(elements, (elementKey) => {
         elements[elementKey].used = false;
       });
-      render(node, mount);
+      _render(node, mount);
       _enumerate(elements, (elementKey) => {
         if (!elements[elementKey].used) {
           // unmount
-          var node = elements[elementKey];
+          let node = elements[elementKey];
           _invoke(node.p, willUnmount, node.el);
           node.el.parentNode.removeChild(node.el);
           delete elements[elementKey];
@@ -58,25 +49,24 @@ export function renderApp(node, mount, state, wireActions) {
     },
   };
 
-  var elements = {};
+  let elements = {};
 
   function getEl(key, node) {
     if (!(key in elements)) {
       elements[key] = {
-        el:
-          node.t === null
-            ? document.createTextNode(node.p)
-            : document.createElement(node.t),
+        el: !node.t
+          ? document.createTextNode(node)
+          : document.createElement(node.t),
       };
     }
     elements[key].used = true;
     return elements[key].el;
   }
 
-  var actions = wireActions(store);
+  let actions = wireActions(store);
 
   _enumerate(actions, (actionKey) => {
-    var action = actions[actionKey];
+    let action = actions[actionKey];
     actions[actionKey] = (...args) => {
       if (action.call(actions, ...args) !== false) {
         store.flush();
@@ -94,8 +84,7 @@ export function renderApp(node, mount, state, wireActions) {
         return;
       }
       el.innerHTML = value === null ? '' : value.__html;
-    }
-    if (name.startsWith('on')) {
+    } else if (name.startsWith('on')) {
       el[name.toLowerCase()] = value;
     } else {
       if (value === null || value === false) {
@@ -113,16 +102,28 @@ export function renderApp(node, mount, state, wireActions) {
       }
     });
 
-    _enumerate(newProps, (prop) => {
-      if (oldProps[prop] !== newProps[prop]) {
-        setProperty(el, prop, newProps[prop], oldProps[prop]);
-      }
-    });
+    if (newProps)
+      _enumerate(newProps, (prop) => {
+        if (oldProps[prop] !== newProps[prop]) {
+          setProperty(el, prop, newProps[prop], oldProps[prop]);
+        }
+      });
   }
 
-  function render(node, target, prefix = [], idx = 0) {
-    if (node.t instanceof Function) {
-      return render(
+  function _render(node, target, prefix = [], idx = 0) {
+    if (_falsy(node)) {
+      return [];
+    }
+    if (Array.isArray(node)) {
+      let order = [];
+      prefix.push('array');
+      for (var [i, c] of node.entries()) {
+        order.push(..._render(c, target, prefix, i));
+      }
+      prefix.pop();
+      return order;
+    } else if (node.t instanceof Function) {
+      return _render(
         node.t({
           ...node.p,
           state: store.state,
@@ -130,33 +131,41 @@ export function renderApp(node, mount, state, wireActions) {
         }),
         target,
         prefix,
+        idx,
       );
+    } else if (node.t && node.constructor !== undefined) {
+      return [];
     }
 
     prefix.push(node.t || 'text', node.k || idx);
 
-    var key = prefix.join('.');
-    var exists = !!elements[key];
-    var el = getEl(key, node);
-    var order = [];
+    let key = prefix.join('.');
+    let exists = !!elements[key];
+    let el = getEl(key, node);
+    let order = [];
 
     if (el instanceof HTMLElement) {
-      var oldp = exists ? elements[key].p : {};
+      let oldp = exists ? elements[key].p : {};
       update(el, node.p, oldp);
-      var i = 0;
-      for (var c of node.p[children]) {
-        order.push(render(c, el, prefix, i));
-        i++;
+      let i = 0;
+      if (node.p) {
+        let ch = node.p[children] || [];
+        for (let c of ch) {
+          if (!_falsy(c)) {
+            order.push(..._render(c, el, prefix, i));
+          }
+          i++;
+        }
       }
       elements[key].p = { ...node.p };
     } else if (el instanceof Text) {
-      el.nodeValue = node.p;
+      el.nodeValue = node;
     }
 
     prefix.splice(-2, 2);
 
     // reorder
-    for (var i = 0; i < order.length; i++) {
+    for (let i = 0; i < order.length; i++) {
       if (el.children[i] !== order[i]) {
         el.insertBefore(order[i], el.children[i]);
       }
@@ -169,10 +178,20 @@ export function renderApp(node, mount, state, wireActions) {
 
     _invoke(node.p, exists ? didUpdate : didMount, el);
 
-    return el;
+    return [el];
   }
 
-  render(node, mount);
+  _render(node, mount);
+}
+
+function _falsy(c) {
+  return (
+    c === true ||
+    c === false ||
+    c === null ||
+    c == undefined ||
+    typeof c === 'function'
+  );
 }
 
 function _enumerate(obj, cb) {
@@ -185,13 +204,13 @@ function _invoke(obj, fn, ...args) {
   obj && obj[fn] && obj[fn](...args);
 }
 
-var didUpdate = 'didUpdate';
-var didMount = 'didMount';
-var willUnmount = 'willUnmount';
-var className = 'className';
-var children = 'children';
+let didUpdate = 'didUpdate';
+let didMount = 'didMount';
+let willUnmount = 'willUnmount';
+let className = 'className';
+let children = 'children';
 
-var reservedProps = {
+let reservedProps = {
   actions: 0,
   state: 0,
   k: 0,
