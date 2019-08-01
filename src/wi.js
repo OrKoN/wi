@@ -2,22 +2,22 @@
   names:
     - p:props
     - t:type
-    - c:child
     - k:key
 
+  TODO:
  -- support svg
  -- tests
 */
 
-export function h(t, p, ...children) {
+export function h(t, p, ...childNodes) {
   p = { ...p };
   let k = p && p.k ? p.k : null;
   delete p.k;
   if (arguments.length >= 3) {
-    p.children =
-      children.length == 1 && Array.isArray(children[0])
-        ? children[0]
-        : children;
+    p[children] =
+      childNodes.length == 1 && Array.isArray(childNodes[0])
+        ? childNodes[0]
+        : childNodes;
   }
   return {
     t,
@@ -30,14 +30,16 @@ export function h(t, p, ...children) {
 export function render(node, mount, state = {}, wireActions = () => ({})) {
   mount.innerHTML = '';
 
+  let elements = {};
+
   let store = {
     state,
     flush: () => {
-      _enumerate(elements, (elementKey) => {
+      _eachKey(elements, (elementKey) => {
         elements[elementKey].used = false;
       });
       _render(node, mount);
-      _enumerate(elements, (elementKey) => {
+      _eachKey(elements, (elementKey) => {
         if (!elements[elementKey].used) {
           // unmount
           let node = elements[elementKey];
@@ -48,8 +50,6 @@ export function render(node, mount, state = {}, wireActions = () => ({})) {
       });
     },
   };
-
-  let elements = {};
 
   function getEl(key, node) {
     if (!(key in elements)) {
@@ -65,12 +65,10 @@ export function render(node, mount, state = {}, wireActions = () => ({})) {
 
   let actions = wireActions(store);
 
-  _enumerate(actions, (actionKey) => {
+  _eachKey(actions, (actionKey) => {
     let action = actions[actionKey];
     actions[actionKey] = (...args) => {
-      if (action.call(actions, ...args) !== false) {
-        store.flush();
-      }
+      action.call(actions, ...args) !== false && store.flush();
     };
   });
 
@@ -84,34 +82,41 @@ export function render(node, mount, state = {}, wireActions = () => ({})) {
       if (oldValue && value.__html === oldValue.__html) {
         return;
       }
-      el.innerHTML = value === null ? '' : value.__html;
-    } else if (name.startsWith('on')) {
-      el[name.toLowerCase()] = value;
+      el.innerHTML = value.__html;
+    } else if (name[0] === 'o' && name[1] === 'n') {
+      el[name] = value;
     } else {
       if (value === null || value === false) {
         el.removeAttribute(name, value);
       } else {
-        if (value === true) {
-          value = '';
-        }
         el.setAttribute(name, value);
       }
     }
   }
 
   function update(el, newProps, oldProps) {
-    _enumerate(oldProps, (prop) => {
-      if (!(prop in newProps)) {
-        setProperty(el, prop, null, oldProps[prop]);
-      }
+    _eachKey(oldProps, (prop) => {
+      !(prop in newProps) && setProperty(el, prop, null, oldProps[prop]);
     });
 
-    if (newProps)
-      _enumerate(newProps, (prop) => {
-        if (oldProps[prop] !== newProps[prop]) {
+    if (newProps) {
+      _eachKey(newProps, (prop) => {
+        oldProps[prop] !== newProps[prop] &&
           setProperty(el, prop, newProps[prop], oldProps[prop]);
-        }
       });
+    }
+  }
+
+  function _renderList(nodes, target, prefix) {
+    let i = 0;
+    let results = [];
+    prefix.push('list');
+    for (let node of nodes) {
+      !_falsy(node) && results.push(..._render(node, target, prefix, i));
+      i++;
+    }
+    prefix.pop();
+    return results;
   }
 
   function _render(node, target, prefix = [], idx = 0) {
@@ -119,13 +124,7 @@ export function render(node, mount, state = {}, wireActions = () => ({})) {
       return [];
     }
     if (Array.isArray(node)) {
-      let order = [];
-      prefix.push('array');
-      for (var [i, c] of node.entries()) {
-        order.push(..._render(c, target, prefix, i));
-      }
-      prefix.pop();
-      return order;
+      return _renderList(node, target, prefix);
     } else if (node.t instanceof Function) {
       return _render(
         node.t({
@@ -146,21 +145,10 @@ export function render(node, mount, state = {}, wireActions = () => ({})) {
     let key = prefix.join('.');
     let exists = !!elements[key];
     let el = getEl(key, node);
-    let order = [];
+    let order = _renderList((node.p && node.p[children]) || [], el, prefix);
 
     if (el instanceof HTMLElement) {
-      let oldp = exists ? elements[key].p : {};
-      update(el, node.p, oldp);
-      let i = 0;
-      if (node.p) {
-        let ch = node.p[children] || [];
-        for (let c of ch) {
-          if (!_falsy(c)) {
-            order.push(..._render(c, el, prefix, i));
-          }
-          i++;
-        }
-      }
+      update(el, node.p, exists ? elements[key].p : {});
       elements[key].p = { ...node.p };
     } else if (el instanceof Text) {
       el.nodeValue = node;
@@ -170,15 +158,11 @@ export function render(node, mount, state = {}, wireActions = () => ({})) {
 
     // reorder
     for (let i = 0; i < order.length; i++) {
-      if (el.children[i] !== order[i]) {
-        el.insertBefore(order[i], el.children[i]);
-      }
+      el.children[i] !== order[i] && el.insertBefore(order[i], el.children[i]);
     }
 
-    if (!exists) {
-      // mount
-      target.appendChild(el);
-    }
+    // mount
+    !exists && target.appendChild(el);
 
     _invoke(node.p, exists ? didUpdate : didMount, el);
 
@@ -198,7 +182,7 @@ function _falsy(c) {
   );
 }
 
-function _enumerate(obj, cb) {
+function _eachKey(obj, cb) {
   Object.keys(obj).forEach((key) => {
     cb(key);
   });
