@@ -169,6 +169,85 @@ describe('render', () => {
     render(getMixedArray(), scratch);
     expect(scratch.innerHTML).toEqual(mixedArrayHTML);
   });
+
+  it('clears falsy attributes', () => {
+    render(
+      <div
+        anull="anull"
+        aundefined="aundefined"
+        afalse="afalse"
+        anan="aNaN"
+        a0="a0"
+      />,
+      scratch,
+    );
+
+    render(
+      <div
+        anull={null}
+        aundefined={undefined}
+        afalse={false}
+        anan={NaN}
+        a0={0}
+      />,
+      scratch,
+    );
+
+    expect(getAttributes(scratch.firstChild)).toEqual({
+      a0: '0',
+      anan: 'NaN',
+    });
+  });
+
+  it('does not render falsy attributes on hydrate', () => {
+    render(
+      <div
+        anull={null}
+        aundefined={undefined}
+        afalse={false}
+        anan={NaN}
+        a0={0}
+      />,
+      scratch,
+    );
+
+    expect(getAttributes(scratch.firstChild)).toEqual({
+      a0: '0',
+      anan: 'NaN',
+    });
+  });
+
+  it('sets value inside the specified range', () => {
+    render(
+      <input type="range" value={0.5} min="0" max="1" step="0.05" />,
+      scratch,
+    );
+    expect(scratch.firstChild.value).toEqual('0.5');
+  });
+
+  // Test for preactjs/preact#651
+  it('sets enumerable boolean attribute', () => {
+    render(<input spellcheck={false} />, scratch);
+    expect(scratch.firstChild.spellcheck).toEqual(false);
+  });
+
+  it('does not set tagName', () => {
+    expect(() => render(<input tagName="div" />, scratch)).not.toThrow();
+  });
+
+  it('applies string attributes', () => {
+    render(<div foo="bar" data-foo="databar" />, scratch);
+    expect(serializeHtml(scratch)).toEqual(
+      '<div data-foo="databar" foo="bar"></div>',
+    );
+  });
+
+  it('does not serialize function props as attributes', () => {
+    render(<div click={function a() {}} ONCLICK={function b() {}} />, scratch);
+
+    let div = scratch.childNodes[0];
+    expect(div.attributes.length).toEqual(0);
+  });
 });
 
 function setupScratch() {
@@ -176,6 +255,75 @@ function setupScratch() {
   scratch.id = 'scratch';
   (document.body || document.documentElement).appendChild(scratch);
   return scratch;
+}
+
+function getAttributes(node) {
+  let attrs = {};
+  for (let i = node.attributes.length; i--; ) {
+    attrs[node.attributes[i].name] = node.attributes[i].value;
+  }
+  return attrs;
+}
+
+const VOID_ELEMENTS = /^(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/;
+
+function serializeHtml(node) {
+  let str = '';
+  let child = node.firstChild;
+  while (child) {
+    str += serializeDomTree(child);
+    child = child.nextSibling;
+  }
+  return str;
+}
+
+/**
+ * Serialize a DOM tree.
+ * Uses deterministic sorting where necessary to ensure consistent tests.
+ * @param {Element|Node} node The root node to serialize
+ * @returns {string} html
+ */
+function serializeDomTree(node) {
+  if (node.nodeType === 3) {
+    return encodeEntities(node.data);
+  } else if (node.nodeType === 8) {
+    return '<!--' + encodeEntities(node.data) + '-->';
+  } else if (node.nodeType === 1 || node.nodeType === 9) {
+    let str = '<' + node.localName;
+    const attrs = [];
+    for (let i = 0; i < node.attributes.length; i++) {
+      attrs.push(node.attributes[i].name);
+    }
+    attrs.sort();
+    for (let i = 0; i < attrs.length; i++) {
+      const name = attrs[i];
+      let value = node.getAttribute(name);
+      if (value == null) continue;
+      if (!value && name === 'class') continue;
+      str += ' ' + name;
+      value = encodeEntities(value);
+
+      // normalize svg <path d="value">
+      if (node.localName === 'path' && name === 'd') {
+        value = normalizePath(value);
+      }
+      str += '="' + value + '"';
+    }
+    str += '>';
+    if (!VOID_ELEMENTS.test(node.localName)) {
+      let child = node.firstChild;
+      while (child) {
+        str += serializeDomTree(child);
+        child = child.nextSibling;
+      }
+      str += '</' + node.localName + '>';
+    }
+    return str;
+  }
+}
+
+function encodeEntities(str) {
+  return str.replace(/&/g, '&amp;');
 }
 
 const Foo = () => 'd';

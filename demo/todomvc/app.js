@@ -1,4 +1,4 @@
-import { h, renderApp } from '../../src/wi.js';
+import { h, render } from '../../src/wi.js';
 import { ALL_TODOS, ACTIVE_TODOS, COMPLETED_TODOS } from './utils';
 import { TodoItem } from './item';
 import { TodoFooter } from './footer';
@@ -23,8 +23,6 @@ function App({ state, actions }) {
   }, 0);
 
   var completedCount = todos.length - activeTodoCount;
-
-  console.log(state.newTodo);
 
   return (
     <div k="todoapp">
@@ -153,4 +151,4 @@ const actions = (store) => {
   };
 };
 
-renderApp(<App />, document.getElementById('todoapp'), initialState, actions);
+render(<App />, document.getElementById('todoapp'), initialState, actions);

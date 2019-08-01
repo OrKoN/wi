@@ -75,11 +75,12 @@ export function render(node, mount, state = {}, wireActions = () => ({})) {
   });
 
   function setProperty(el, name, value, oldValue) {
+    name = name.toLowerCase();
     if (name in reservedProps) {
       return;
     }
-    name = name === 'className' ? 'class' : name;
-    if (name === 'dangerouslySetInnerHTML') {
+    name = name === 'classname' ? 'class' : name;
+    if (name === 'dangerouslysetinnerhtml') {
       if (oldValue && value.__html === oldValue.__html) {
         return;
       }
@@ -90,6 +91,9 @@ export function render(node, mount, state = {}, wireActions = () => ({})) {
       if (value === null || value === false) {
         el.removeAttribute(name, value);
       } else {
+        if (value === true) {
+          value = '';
+        }
         el.setAttribute(name, value);
       }
     }
@@ -204,10 +208,10 @@ function _invoke(obj, fn, ...args) {
   obj && obj[fn] && obj[fn](...args);
 }
 
-let didUpdate = 'didUpdate';
-let didMount = 'didMount';
-let willUnmount = 'willUnmount';
-let className = 'className';
+let didUpdate = 'didupdate';
+let didMount = 'didmount';
+let willUnmount = 'willunmount';
+let className = 'classname';
 let children = 'children';
 
 let reservedProps = {
