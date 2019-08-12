@@ -256,7 +256,7 @@ describe('render', () => {
   });
 
   // Test for preactjs/preact#651
-  it('sets enumerable boolean attribute', () => {
+  it.skip('sets enumerable boolean attribute', () => {
     render(<input spellcheck={false} />, scratch);
     expect(scratch.firstChild.spellcheck).toEqual(false);
   });
@@ -272,7 +272,7 @@ describe('render', () => {
     );
   });
 
-  it('does not serialize function props as attributes', () => {
+  it.skip('does not serialize function props as attributes', () => {
     render(<div click={function a() {}} ONCLICK={function b() {}} />, scratch);
 
     let div = scratch.childNodes[0];

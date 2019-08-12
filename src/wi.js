@@ -78,7 +78,9 @@ export function render(node, mount, state = {}, wireActions = () => ({})) {
       return;
     }
     name = name === 'classname' ? 'class' : name;
-    if (name === 'dangerouslysetinnerhtml') {
+    if (name === 'nodevalue' && value !== oldValue) {
+      el.nodevalue = value;
+    } else if (name === 'dangerouslysetinnerhtml') {
       if (oldValue && value.__html === oldValue.__html) {
         return;
       }
@@ -94,17 +96,18 @@ export function render(node, mount, state = {}, wireActions = () => ({})) {
     }
   }
 
-  function update(el, newProps, oldProps) {
+  function updateElement(el, node, oldProps, key) {
+    const newProps = node.p ? { ...node.p } : { nodeValue: node };
     _eachKey(oldProps, (prop) => {
       !(prop in newProps) && setProperty(el, prop, null, oldProps[prop]);
     });
-
     if (newProps) {
       _eachKey(newProps, (prop) => {
         oldProps[prop] !== newProps[prop] &&
           setProperty(el, prop, newProps[prop], oldProps[prop]);
       });
     }
+    return newProps;
   }
 
   function _renderList(nodes, target, prefix) {
@@ -147,12 +150,12 @@ export function render(node, mount, state = {}, wireActions = () => ({})) {
     let el = getEl(key, node);
     let order = _renderList((node.p && node.p[children]) || [], el, prefix);
 
-    if (el instanceof HTMLElement) {
-      update(el, node.p, exists ? elements[key].p : {});
-      elements[key].p = { ...node.p };
-    } else if (el instanceof Text) {
-      el.nodeValue = node;
-    }
+    elements[key].p = updateElement(
+      el,
+      node,
+      exists ? elements[key].p : {},
+      key,
+    );
 
     prefix.splice(-2, 2);
 
